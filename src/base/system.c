@@ -2099,6 +2099,29 @@ void secure_random_fill(void *bytes, unsigned length)
 #endif
 }
 
+//TeeUniverses
+void str_append_num(char *dst, const char *src, int dst_size, int num)
+{
+	int s = strlen(dst);
+	int i = 0;
+	while(s < dst_size)
+	{
+		if(i >= num)
+		{
+			dst[s] = 0;
+			return;
+		}
+
+		dst[s] = src[i];
+		if(!src[i]) /* check for null termination */
+			return;
+		s++;
+		i++;
+	}
+
+	dst[dst_size - 1] = 0; /* assure null termination */
+}
+
 #if defined(__cplusplus)
 }
 #endif

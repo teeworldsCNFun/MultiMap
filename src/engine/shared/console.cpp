@@ -255,11 +255,13 @@ bool CConsole::LineIsValid(const char *pStr)
 	return true;
 }
 
-void CConsole::ExecuteLineStroked(int Stroke, const char *pStr)
+void CConsole::ExecuteLineStroked(int Stroke, const char *pStr, int ClientID, bool TeamChat)
 {
 	while(pStr && *pStr)
 	{
 		CResult Result;
+		Result.SetClientID(ClientID);
+		Result.SetTeamChat(TeamChat);
 		const char *pEnd = pStr;
 		const char *pNextPart = 0;
 		int InString = 0;
@@ -312,7 +314,10 @@ void CConsole::ExecuteLineStroked(int Stroke, const char *pStr)
 					if(ParseArgs(&Result, pCommand->m_pParams))
 					{
 						char aBuf[256];
-						str_format(aBuf, sizeof(aBuf), "Invalid arguments... Usage: %s %s", pCommand->m_pName, pCommand->m_pParams);
+						
+						str_format(aBuf, sizeof(aBuf), "Usage: %s %s", pCommand->m_pName, pCommand->m_pUsage);
+						
+						Print(OUTPUT_LEVEL_STANDARD, "Console", "Invalid arguments.");
 						Print(OUTPUT_LEVEL_STANDARD, "Console", aBuf);
 					}
 					else if(m_StoreCommands && pCommand->m_Flags&CFGFLAG_STORE)
@@ -323,7 +328,18 @@ void CConsole::ExecuteLineStroked(int Stroke, const char *pStr)
 						m_ExecutionQueue.m_pLast->m_Result = Result;
 					}
 					else
-						pCommand->m_pfnCallback(&Result, pCommand->m_pUserData);
+					{
+						bool ValideArguments = pCommand->m_pfnCallback(&Result, pCommand->m_pUserData);
+						if(!ValideArguments)
+						{
+							char aBuf[256];
+							
+							str_format(aBuf, sizeof(aBuf), "Usage: %s %s", pCommand->m_pName, pCommand->m_pUsage);
+							
+							Print(OUTPUT_LEVEL_STANDARD, "Console", "Invalid arguments.");
+							Print(OUTPUT_LEVEL_STANDARD, "Console", aBuf);
+						}
+					}
 				}
 			}
 			else if(Stroke)
@@ -370,17 +386,17 @@ CConsole::CCommand *CConsole::FindCommand(const char *pName, int FlagMask)
 	return 0x0;
 }
 
-void CConsole::ExecuteLine(const char *pStr)
+void CConsole::ExecuteLine(const char *pStr, int ClientID, bool TeamChat)
 {
-	CConsole::ExecuteLineStroked(1, pStr); // press it
-	CConsole::ExecuteLineStroked(0, pStr); // then release it
+	CConsole::ExecuteLineStroked(1, pStr, ClientID, TeamChat); // press it
+	CConsole::ExecuteLineStroked(0, pStr, ClientID, TeamChat); // then release it
 }
 
-void CConsole::ExecuteLineFlag(const char *pStr, int FlagMask)
+void CConsole::ExecuteLineFlag(const char *pStr, int ClientID, bool TeamChat, int FlagMask)
 {
 	int Temp = m_FlagMask;
 	m_FlagMask = FlagMask;
-	ExecuteLine(pStr);
+	ExecuteLine(pStr, ClientID, TeamChat);
 	m_FlagMask = Temp;
 }
 
@@ -418,7 +434,7 @@ void CConsole::ExecuteFile(const char *pFilename)
 		lr.Init(File);
 
 		while((pLine = lr.Get()))
-			ExecuteLine(pLine);
+			ExecuteLine(pLine, -1, false);
 
 		io_close(File);
 	}
@@ -431,17 +447,17 @@ void CConsole::ExecuteFile(const char *pFilename)
 	m_pFirstExec = pPrev;
 }
 
-void CConsole::Con_Echo(IResult *pResult, void *pUserData)
+bool CConsole::Con_Echo(IResult *pResult, void *pUserData)
 {
 	((CConsole*)pUserData)->Print(IConsole::OUTPUT_LEVEL_STANDARD, "Console", pResult->GetString(0));
 }
 
-void CConsole::Con_Exec(IResult *pResult, void *pUserData)
+bool CConsole::Con_Exec(IResult *pResult, void *pUserData)
 {
 	((CConsole*)pUserData)->ExecuteFile(pResult->GetString(0));
 }
 
-void CConsole::ConModCommandAccess(IResult *pResult, void *pUser)
+bool CConsole::ConModCommandAccess(IResult *pResult, void *pUser)
 {
 	CConsole* pConsole = static_cast<CConsole *>(pUser);
 	char aBuf[128];
@@ -462,7 +478,7 @@ void CConsole::ConModCommandAccess(IResult *pResult, void *pUser)
 	pConsole->Print(OUTPUT_LEVEL_STANDARD, "Console", aBuf);
 }
 
-void CConsole::ConModCommandStatus(IResult *pResult, void *pUser)
+bool CConsole::ConModCommandStatus(IResult *pResult, void *pUser)
 {
 	CConsole* pConsole = static_cast<CConsole *>(pUser);
 	char aBuf[240];
@@ -512,7 +528,7 @@ struct CStrVariableData
 	int m_MaxSize;
 };
 
-static void IntVariableCommand(IConsole::IResult *pResult, void *pUserData)
+static bool IntVariableCommand(IConsole::IResult *pResult, void *pUserData)
 {
 	CIntVariableData *pData = (CIntVariableData *)pUserData;
 
@@ -539,7 +555,7 @@ static void IntVariableCommand(IConsole::IResult *pResult, void *pUserData)
 	}
 }
 
-static void StrVariableCommand(IConsole::IResult *pResult, void *pUserData)
+static bool StrVariableCommand(IConsole::IResult *pResult, void *pUserData)
 {
 	CStrVariableData *pData = (CStrVariableData *)pUserData;
 
@@ -566,15 +582,11 @@ static void StrVariableCommand(IConsole::IResult *pResult, void *pUserData)
 		else
 			str_copy(pData->m_pStr, pString, pData->m_MaxSize);
 	}
-	else
-	{
-		char aBuf[1024];
-		str_format(aBuf, sizeof(aBuf), "Value: %s", pData->m_pStr);
-		pData->m_pConsole->Print(IConsole::OUTPUT_LEVEL_STANDARD, "Console", aBuf);
-	}
+	
+	return true;
 }
 
-void CConsole::ConToggle(IConsole::IResult *pResult, void *pUser)
+bool CConsole::ConToggle(IConsole::IResult *pResult, void *pUser)
 {
 	CConsole* pConsole = static_cast<CConsole *>(pUser);
 	char aBuf[128] = {0};
@@ -597,7 +609,7 @@ void CConsole::ConToggle(IConsole::IResult *pResult, void *pUser)
 			CIntVariableData *pData = static_cast<CIntVariableData *>(pUserData);
 			int Val = *(pData->m_pVariable)==pResult->GetInteger(1) ? pResult->GetInteger(2) : pResult->GetInteger(1);
 			str_format(aBuf, sizeof(aBuf), "%s %i", pResult->GetString(0), Val);
-			pConsole->ExecuteLine(aBuf);
+			pConsole->ExecuteLine(aBuf, -1, false);
 			aBuf[0] = 0;
 		}
 		else
@@ -608,9 +620,11 @@ void CConsole::ConToggle(IConsole::IResult *pResult, void *pUser)
 
 	if(aBuf[0] != 0)
 		pConsole->Print(OUTPUT_LEVEL_STANDARD, "Console", aBuf);
+	
+	return true;
 }
 
-void CConsole::ConToggleStroke(IConsole::IResult *pResult, void *pUser)
+bool CConsole::ConToggleStroke(IConsole::IResult *pResult, void *pUser)
 {
 	CConsole* pConsole = static_cast<CConsole *>(pUser);
 	char aBuf[128] = {0};
@@ -630,7 +644,7 @@ void CConsole::ConToggleStroke(IConsole::IResult *pResult, void *pUser)
 		{
 			int Val = pResult->GetInteger(0)==0 ? pResult->GetInteger(3) : pResult->GetInteger(2);
 			str_format(aBuf, sizeof(aBuf), "%s %i", pResult->GetString(1), Val);
-			pConsole->ExecuteLine(aBuf);
+			pConsole->ExecuteLine(aBuf, -1, false);
 			aBuf[0] = 0;
 		}
 		else
@@ -641,6 +655,8 @@ void CConsole::ConToggleStroke(IConsole::IResult *pResult, void *pUser)
 
 	if(aBuf[0] != 0)
 		pConsole->Print(OUTPUT_LEVEL_STANDARD, "Console", aBuf);
+
+	return true;
 }
 
 CConsole::CConsole(int FlagMask)
@@ -708,7 +724,7 @@ void CConsole::ParseArguments(int NumArgs, const char **ppArguments)
 		else
 		{
 			// search arguments for overrides
-			ExecuteLine(ppArguments[i]);
+			ExecuteLine(ppArguments[i], -1, false);
 		}
 	}
 }
@@ -737,6 +753,90 @@ void CConsole::AddCommandSorted(CCommand *pCommand)
 	}
 }
 
+void CConsole::GenerateUsage(const char* pParam, char* pUsage)
+{
+	while(*pParam)
+	{
+		char ParamType = *pParam;
+		pParam++;
+
+		if (*pParam == '<')
+		{
+			if(ParamType == 'i')
+			{
+				pParam++;
+				
+				for (; *pParam != '>'; pParam++)
+				{
+					if (*pParam)
+					{
+						*pUsage = *pParam;
+						pUsage++;
+					}
+					else
+						return;
+				}
+
+				pParam++;
+				*pUsage = ' ';
+				pUsage++;
+			}
+			else
+			{
+				*pUsage = '"';
+				pUsage++;
+				pParam++;
+				
+				for (; *pParam != '>'; pParam++)
+				{
+					if (*pParam)
+					{
+						*pUsage = *pParam;
+						pUsage++;
+					}
+					else
+					{
+						*pUsage = '"';
+						return;
+					}
+				}
+
+				pParam++;
+				*pUsage = '"';
+				pUsage++;
+				*pUsage = ' ';
+				pUsage++;
+			}
+
+			// skip space if there is one
+			if (*pParam == ' ')
+				pParam++;
+		}
+		else if(ParamType == 's')
+		{
+			str_copy(pUsage, "\"text\" ", sizeof("\"text\" "));
+			pUsage += sizeof("\"text\" ");
+		}
+		else if(ParamType == 'r')
+		{
+			str_copy(pUsage, "\"text...\" ", sizeof("\"text...\" "));
+			pUsage += sizeof("\"text...\" ");
+		}
+		else if(ParamType == 'i')
+		{
+			str_copy(pUsage, "number ", sizeof("number "));
+			pUsage += sizeof("number ");
+		}
+		else if(ParamType == '?')
+		{
+			*pUsage = '?';
+			pUsage++;
+		}
+	}
+	
+	*pUsage = 0;
+}
+
 void CConsole::Register(const char *pName, const char *pParams,
 	int Flags, FCommandCallback pfnFunc, void *pUser, const char *pHelp)
 {
@@ -744,19 +844,23 @@ void CConsole::Register(const char *pName, const char *pParams,
 	bool DoAdd = false;
 	if(pCommand == 0)
 	{
-		pCommand = new(mem_alloc(sizeof(CCommand), sizeof(void*))) CCommand;
+		pCommand = new CCommand();
 		DoAdd = true;
 	}
 	pCommand->m_pfnCallback = pfnFunc;
 	pCommand->m_pUserData = pUser;
 
 	pCommand->m_pName = pName;
+	GenerateUsage(pParams, pCommand->m_pUsage);
 	pCommand->m_pHelp = pHelp;
 	pCommand->m_pParams = pParams;
 
 	pCommand->m_Flags = Flags;
 	pCommand->m_Temp = false;
 
+	if(pCommand->m_Flags&CFGFLAG_USER)
+		pCommand->SetAccessLevel(ACCESS_LEVEL_USER);
+		
 	if(DoAdd)
 		AddCommandSorted(pCommand);
 }
@@ -768,6 +872,7 @@ void CConsole::RegisterTemp(const char *pName, const char *pParams,	int Flags, c
 	{
 		pCommand = m_pRecycleList;
 		str_copy(const_cast<char *>(pCommand->m_pName), pName, TEMPCMD_NAME_LENGTH);
+		GenerateUsage(pParams, pCommand->m_pUsage);
 		str_copy(const_cast<char *>(pCommand->m_pHelp), pHelp, TEMPCMD_HELP_LENGTH);
 		str_copy(const_cast<char *>(pCommand->m_pParams), pParams, TEMPCMD_PARAMS_LENGTH);
 
@@ -776,12 +881,17 @@ void CConsole::RegisterTemp(const char *pName, const char *pParams,	int Flags, c
 	else
 	{
 		pCommand = new(m_TempCommands.Allocate(sizeof(CCommand))) CCommand;
+		
 		char *pMem = static_cast<char *>(m_TempCommands.Allocate(TEMPCMD_NAME_LENGTH));
 		str_copy(pMem, pName, TEMPCMD_NAME_LENGTH);
 		pCommand->m_pName = pMem;
+		
+		GenerateUsage(pParams, pCommand->m_pUsage);
+		
 		pMem = static_cast<char *>(m_TempCommands.Allocate(TEMPCMD_HELP_LENGTH));
 		str_copy(pMem, pHelp, TEMPCMD_HELP_LENGTH);
 		pCommand->m_pHelp = pMem;
+		
 		pMem = static_cast<char *>(m_TempCommands.Allocate(TEMPCMD_PARAMS_LENGTH));
 		str_copy(pMem, pParams, TEMPCMD_PARAMS_LENGTH);
 		pCommand->m_pParams = pMem;
@@ -847,7 +957,7 @@ void CConsole::DeregisterTempAll()
 	m_pRecycleList = 0;
 }
 
-void CConsole::Con_Chain(IResult *pResult, void *pUserData)
+bool CConsole::Con_Chain(IResult *pResult, void *pUserData)
 {
 	CChain *pInfo = (CChain *)pUserData;
 	pInfo->m_pfnChainCallback(pResult, pInfo->m_pUserData, pInfo->m_pfnCallback, pInfo->m_pCallbackUserData);

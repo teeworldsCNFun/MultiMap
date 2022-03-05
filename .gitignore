@@ -9,3 +9,7 @@
 
 # objs ignore
 /objs
+
+/build
+*_srv_d
+*.pyc

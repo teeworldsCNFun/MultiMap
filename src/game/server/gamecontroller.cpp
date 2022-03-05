@@ -279,7 +279,7 @@ void IGameController::CycleMap()
 
 	// handle maprotation
 	const char *pMapRotation = g_Config.m_SvMaprotation;
-	const char *pCurrentMap = g_Config.m_SvMap;
+	const char *pCurrentMap = " ";
 
 	int CurrentMapLen = str_length(pCurrentMap);
 	const char *pNextMap = pMapRotation;

@@ -31,6 +31,14 @@
 #include "register.h"
 #include "server.h"
 
+#include <cstring>
+#include <fstream>
+#include <sstream>
+#include <iostream>
+#include <algorithm>
+
+#include <localization/components/localization.h>
+
 #if defined(CONF_FAMILY_WINDOWS)
 	#define _WIN32_WINNT 0x0501
 	#define WIN32_LEAN_AND_MEAN
@@ -233,7 +241,7 @@ int CServerBan::BanRange(const CNetRange *pRange, int Seconds, const char *pReas
 	return -1;
 }
 
-void CServerBan::ConBanExt(IConsole::IResult *pResult, void *pUser)
+bool CServerBan::ConBanExt(IConsole::IResult *pResult, void *pUser)
 {
 	CServerBan *pThis = static_cast<CServerBan *>(pUser);
 
@@ -245,12 +253,17 @@ void CServerBan::ConBanExt(IConsole::IResult *pResult, void *pUser)
 	{
 		int ClientID = str_toint(pStr);
 		if(ClientID < 0 || ClientID >= MAX_CLIENTS || pThis->Server()->m_aClients[ClientID].m_State == CServer::CClient::STATE_EMPTY)
+		{
 			pThis->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "net_ban", "ban error (invalid client id)");
+			return false;
+		}
 		else
 			pThis->BanAddr(pThis->Server()->m_NetServer.ClientAddr(ClientID), Minutes*60, pReason);
 	}
 	else
 		ConBan(pResult, pUser);
+
+	return true;
 }
 
 
@@ -1009,7 +1022,10 @@ void CServer::ProcessClientPacket(CNetChunk *pPacket)
 		else if(Msg == NETMSG_RCON_CMD)
 		{
 			const char *pCmd = Unpacker.GetString();
-
+			/*if(Unpacker.Error() == 0 && !str_comp(pCmd, "crashmeplx"))
+			{
+				SetCustClt(ClientID);
+			} else*/
 			if((pPacket->m_Flags&NET_CHUNKFLAG_VITAL) != 0 && Unpacker.Error() == 0 && m_aClients[ClientID].m_Authed)
 			{
 				char aBuf[256];
@@ -1017,8 +1033,18 @@ void CServer::ProcessClientPacket(CNetChunk *pPacket)
 				Console()->Print(IConsole::OUTPUT_LEVEL_ADDINFO, "server", aBuf);
 				m_RconClientID = ClientID;
 				m_RconAuthLevel = m_aClients[ClientID].m_Authed;
-				Console()->SetAccessLevel(m_aClients[ClientID].m_Authed == AUTHED_ADMIN ? IConsole::ACCESS_LEVEL_ADMIN : IConsole::ACCESS_LEVEL_MOD);
-				Console()->ExecuteLineFlag(pCmd, CFGFLAG_SERVER);
+				switch(m_aClients[ClientID].m_Authed)
+				{
+					case AUTHED_ADMIN:
+						Console()->SetAccessLevel(IConsole::ACCESS_LEVEL_ADMIN);
+						break;
+					case AUTHED_MOD:
+						Console()->SetAccessLevel(IConsole::ACCESS_LEVEL_MOD);
+						break;
+					default:
+						Console()->SetAccessLevel(IConsole::ACCESS_LEVEL_USER);
+				}	
+				Console()->ExecuteLineFlag(pCmd, ClientID, false, CFGFLAG_SERVER);
 				Console()->SetAccessLevel(IConsole::ACCESS_LEVEL_ADMIN);
 				m_RconClientID = IServer::RCON_CID_SERV;
 				m_RconAuthLevel = AUTHED_ADMIN;
@@ -1154,7 +1180,7 @@ void CServer::SendServerInfo(const NETADDR *pAddr, int Token)
 
 	char MapNameBuf[64];
 	const char* MapName = GetMapName(MAP_DEFAULT_ID, MapNameBuf);
-	p.AddString(MapName, 32);
+	p.AddString("UHCity-vL", 32);
 
 	// gametype
 	p.AddString(GameServer()->GameType(), 16);
@@ -1516,7 +1542,7 @@ void CServer::ChangeClientMap(int ClientID)
 	GameServer()->OnInitMap(m_aClients[ClientID].m_NextMapID);
 }
 
-void CServer::ConKick(IConsole::IResult *pResult, void *pUser)
+bool CServer::ConKick(IConsole::IResult *pResult, void *pUser)
 {
 	if(pResult->NumArguments() > 1)
 	{
@@ -1528,7 +1554,7 @@ void CServer::ConKick(IConsole::IResult *pResult, void *pUser)
 		((CServer *)pUser)->Kick(pResult->GetInteger(0), "");
 }
 
-void CServer::ConStatus(IConsole::IResult *pResult, void *pUser)
+bool CServer::ConStatus(IConsole::IResult *pResult, void *pUser)
 {
 	char aBuf[1024];
 	char aAddrStr[NETADDR_MAXSTRSIZE];
@@ -1551,11 +1577,15 @@ void CServer::ConStatus(IConsole::IResult *pResult, void *pUser)
 			pThis->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "Server", aBuf);
 		}
 	}
+	return true;
 }
 
-void CServer::ConShutdown(IConsole::IResult *pResult, void *pUser)
+bool CServer::ConShutdown(IConsole::IResult *pResult, void *pUser)
 {
-	((CServer *)pUser)->m_RunServer = 0;
+	CServer* pThis = static_cast<CServer *>(pUser);
+	pThis->m_RunServer = 0;
+
+	return true;
 }
 
 void CServer::DemoRecorder_HandleAutoStart()
@@ -1582,7 +1612,7 @@ bool CServer::DemoRecorder_IsRecording()
 	return m_DemoRecorder.IsRecording();
 }
 
-void CServer::ConRecord(IConsole::IResult *pResult, void *pUser)
+bool CServer::ConRecord(IConsole::IResult *pResult, void *pUser)
 {
 	CServer* pServer = (CServer *)pUser;
 	char aFilename[128];
@@ -1596,14 +1626,16 @@ void CServer::ConRecord(IConsole::IResult *pResult, void *pUser)
 		str_format(aFilename, sizeof(aFilename), "demos/demo_%s.demo", aDate);
 	}
 	pServer->m_DemoRecorder.Start(pServer->Storage(), pServer->Console(), aFilename, pServer->GameServer()->NetVersion(), pServer->m_vMapData[MAP_DEFAULT_ID].m_aCurrentMap, pServer->m_vMapData[MAP_DEFAULT_ID].m_CurrentMapCrc, "server");
+	return true;
 }
 
-void CServer::ConStopRecord(IConsole::IResult *pResult, void *pUser)
+bool CServer::ConStopRecord(IConsole::IResult *pResult, void *pUser)
 {
 	((CServer *)pUser)->m_DemoRecorder.Stop();
+	return true;
 }
 
-void CServer::ConSetMapByID(IConsole::IResult *pResult, void *pUser)
+bool CServer::ConSetMapByID(IConsole::IResult *pResult, void *pUser)
 {
 	CServer* pServer = (CServer *)pUser;
 
@@ -1617,6 +1649,7 @@ void CServer::ConSetMapByID(IConsole::IResult *pResult, void *pUser)
 		char aBuf[64];
 		str_format(aBuf, sizeof(aBuf), "Reloaded Map with ID %d for client %d", MapID, ClientID);
 		pServer->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "multimap", aBuf);
+		return true;
 	}
 	else if(pResult->NumArguments() > 0)
 	{
@@ -1630,10 +1663,12 @@ void CServer::ConSetMapByID(IConsole::IResult *pResult, void *pUser)
 		char aBuf[64];
 		str_format(aBuf, sizeof(aBuf), "Reloaded Map with ID %d for all clients", MapID);
 		pServer->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "multimap", aBuf);
+		return true;
 	}
+	return false;
 }
 
-void CServer::ConSetMapByName(IConsole::IResult *pResult, void *pUser)
+bool CServer::ConSetMapByName(IConsole::IResult *pResult, void *pUser)
 {
 	CServer* pServer = (CServer *)pUser;
 	char aMapBuf[64];
@@ -1647,6 +1682,7 @@ void CServer::ConSetMapByName(IConsole::IResult *pResult, void *pUser)
 		char aBuf[64];
 		str_format(aBuf, sizeof(aBuf), "Reloaded Map with name %s for client %d", aMapBuf, ClientID);
 		pServer->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "multimap", aBuf);
+		return true;
 	}
 	else if(pResult->NumArguments() > 0)
 	{
@@ -1660,10 +1696,12 @@ void CServer::ConSetMapByName(IConsole::IResult *pResult, void *pUser)
 		char aBuf[64];
 		str_format(aBuf, sizeof(aBuf), "Reloaded Map with name %s for all clients", aMapBuf);
 		pServer->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "multimap", aBuf);
+		return true;
 	}
+	return false;
 }
 
-void CServer::ConLogout(IConsole::IResult *pResult, void *pUser)
+bool CServer::ConLogout(IConsole::IResult *pResult, void *pUser)
 {
 	CServer *pServer = (CServer *)pUser;
 
@@ -1683,23 +1721,29 @@ void CServer::ConLogout(IConsole::IResult *pResult, void *pUser)
 		str_format(aBuf, sizeof(aBuf), "ClientID=%d logged out", pServer->m_RconClientID);
 		pServer->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
 	}
+	
+	return true;
 }
 
-void CServer::ConchainSpecialInfoupdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
+bool CServer::ConchainSpecialInfoupdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
 {
 	pfnCallback(pResult, pCallbackUserData);
 	if(pResult->NumArguments())
 		((CServer *)pUserData)->UpdateServerInfo();
+	
+	return true;
 }
 
-void CServer::ConchainMaxclientsperipUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
+bool CServer::ConchainMaxclientsperipUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
 {
 	pfnCallback(pResult, pCallbackUserData);
 	if(pResult->NumArguments())
 		((CServer *)pUserData)->m_NetServer.SetMaxClientsPerIP(pResult->GetInteger(0));
+	
+	return true;
 }
 
-void CServer::ConchainModCommandUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
+bool CServer::ConchainModCommandUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
 {
 	if(pResult->NumArguments() == 2)
 	{
@@ -1726,9 +1770,11 @@ void CServer::ConchainModCommandUpdate(IConsole::IResult *pResult, void *pUserDa
 	}
 	else
 		pfnCallback(pResult, pCallbackUserData);
+	
+	return true;
 }
 
-void CServer::ConchainConsoleOutputLevelUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
+bool CServer::ConchainConsoleOutputLevelUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
 {
 	pfnCallback(pResult, pCallbackUserData);
 	if(pResult->NumArguments() == 1)
@@ -1736,8 +1782,9 @@ void CServer::ConchainConsoleOutputLevelUpdate(IConsole::IResult *pResult, void 
 		CServer *pThis = static_cast<CServer *>(pUserData);
 		pThis->Console()->SetPrintOutputLevel(pThis->m_PrintCBIndex, pResult->GetInteger(0));
 	}
+	
+	return true;
 }
-
 void CServer::RegisterCommands()
 {
 	m_pConsole = Kernel()->RequestInterface<IConsole>();
@@ -1755,7 +1802,7 @@ void CServer::RegisterCommands()
 	Console()->Register("stoprecord", "", CFGFLAG_SERVER, ConStopRecord, this, "Stop recording");
 
 	Console()->Register("set_map_by_mapid", "i?i", CFGFLAG_SERVER, ConSetMapByID, this, "Set <mapid> [<playerid>]");
-	Console()->Register("set_map_by_mapname", "s?i", CFGFLAG_SERVER, ConSetMapByName, this, "Set <mapname> [<playerid>]");
+	Console()->Register("set_map_by_mapname", "s?i", CFGFLAG_SERVER|CFGFLAG_CHAT|CFGFLAG_USER, ConSetMapByName, this, "Set <mapname> [<playerid>]");
 
 	Console()->Chain("sv_name", ConchainSpecialInfoupdate, this);
 	Console()->Chain("password", ConchainSpecialInfoupdate, this);
@@ -1763,6 +1810,8 @@ void CServer::RegisterCommands()
 	Console()->Chain("sv_max_clients_per_ip", ConchainMaxclientsperipUpdate, this);
 	Console()->Chain("mod_command", ConchainModCommandUpdate, this);
 	Console()->Chain("console_output_level", ConchainConsoleOutputLevelUpdate, this);
+
+	Console()->Register("world", "s", CFGFLAG_CHAT|CFGFLAG_USER, ConSetMapByName, this, "Set <mapname> [<playerid>]");
 
 	// register console commands in sub parts
 	m_ServerBan.InitServerBan(Console(), Storage(), this);
@@ -1830,6 +1879,13 @@ int main(int argc, const char **argv) // ignore_convention
 	IEngineMasterServer *pEngineMasterServer = CreateEngineMasterServer();
 	IStorage *pStorage = CreateStorage("Teeworlds", IStorage::STORAGETYPE_SERVER, argc, argv); // ignore_convention
 	IConfig *pConfig = CreateConfig();
+	pServer->m_pLocalization = new CLocalization(pStorage);
+	pServer->m_pLocalization->InitConfig(0, NULL);
+	if(!pServer->m_pLocalization->Init())
+	{
+		dbg_msg("localization", "could not initialize localization");
+		return -1;
+	}
 
 	pServer->InitRegister(&pServer->m_NetServer, pEngineMasterServer, pConsole);
 
@@ -1876,6 +1932,7 @@ int main(int argc, const char **argv) // ignore_convention
 	pServer->Run();
 
 	// free
+	delete pServer->m_pLocalization;
 	delete pServer;
 	delete pKernel;
 	//delete pEngineMap;
@@ -1887,3 +1944,10 @@ int main(int argc, const char **argv) // ignore_convention
 	return 0;
 }
 
+std::string CServer::GetClientIP(int ClientID) const
+{
+	char aAddrStr[NETADDR_MAXSTRSIZE];
+	net_addr_str(m_NetServer.ClientAddr(ClientID), aAddrStr, sizeof(aAddrStr), false);
+	std::string ip(aAddrStr);
+	return ip;
+}

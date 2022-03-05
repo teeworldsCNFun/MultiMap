@@ -35,6 +35,11 @@ public:
 	void KillCharacter(int Weapon = WEAPON_GAME);
 	CCharacter *GetCharacter();
 
+	const char* GetLanguage();
+	void SetLanguage(const char* pLanguage);
+
+	int m_Authed;
+	
 	//---------------------------------------------------------
 	// this is used for snapping so we know how we can clip the view for the player
 	vec2 m_ViewPos;
@@ -107,6 +112,10 @@ private:
 	bool m_Spawning;
 	int m_ClientID;
 	int m_Team;
+
+protected:
+	char m_aLanguage[16];
+	
 };
 
 #endif

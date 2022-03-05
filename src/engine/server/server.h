@@ -56,7 +56,7 @@ public:
 	virtual int BanAddr(const NETADDR *pAddr, int Seconds, const char *pReason);
 	virtual int BanRange(const CNetRange *pRange, int Seconds, const char *pReason);
 
-	static void ConBanExt(class IConsole::IResult *pResult, void *pUser);
+	static bool ConBanExt(class IConsole::IResult *pResult, void *pUser);
 };
 
 
@@ -202,6 +202,7 @@ public:
 	bool IsAuthed(int ClientID);
 	int GetClientInfo(int ClientID, CClientInfo *pInfo);
 	void GetClientAddr(int ClientID, char *pAddrStr, int Size);
+	std::string GetClientIP(int ClientID) const;
 	const char *ClientName(int ClientID);
 	const char *ClientClan(int ClientID);
 	int ClientCountry(int ClientID);
@@ -241,18 +242,18 @@ public:
 	void InitRegister(CNetServer *pNetServer, IEngineMasterServer *pMasterServer, IConsole *pConsole);
 	int Run();
 
-	static void ConKick(IConsole::IResult *pResult, void *pUser);
-	static void ConStatus(IConsole::IResult *pResult, void *pUser);
-	static void ConShutdown(IConsole::IResult *pResult, void *pUser);
-	static void ConRecord(IConsole::IResult *pResult, void *pUser);
-	static void ConStopRecord(IConsole::IResult *pResult, void *pUser);
-	static void ConSetMapByID(IConsole::IResult *pResult, void *pUser);
-	static void ConSetMapByName(IConsole::IResult *pResult, void *pUser);
-	static void ConLogout(IConsole::IResult *pResult, void *pUser);
-	static void ConchainSpecialInfoupdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
-	static void ConchainMaxclientsperipUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
-	static void ConchainModCommandUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
-	static void ConchainConsoleOutputLevelUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
+	static bool ConKick(IConsole::IResult *pResult, void *pUser);
+	static bool ConStatus(IConsole::IResult *pResult, void *pUser);
+	static bool ConShutdown(IConsole::IResult *pResult, void *pUser);
+	static bool ConRecord(IConsole::IResult *pResult, void *pUser);
+	static bool ConStopRecord(IConsole::IResult *pResult, void *pUser);
+	static bool ConSetMapByID(IConsole::IResult *pResult, void *pUser);
+	static bool ConSetMapByName(IConsole::IResult *pResult, void *pUser);
+	static bool ConLogout(IConsole::IResult *pResult, void *pUser);
+	static bool ConchainSpecialInfoupdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
+	static bool ConchainMaxclientsperipUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
+	static bool ConchainModCommandUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
+	static bool ConchainConsoleOutputLevelUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
 
 	void RegisterCommands();
 

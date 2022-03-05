@@ -763,6 +763,9 @@ void str_append(char *dst, const char *src, int dst_size);
 */
 void str_copy(char *dst, const char *src, int dst_size);
 
+//TeeUniverses
+void str_append_num(char *dst, const char *src, int dst_size, int num);
+
 /*
 	Function: str_length
 		Returns the length of a zero terminated string.

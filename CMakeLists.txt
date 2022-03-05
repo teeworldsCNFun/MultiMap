@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.7)
 
 file(STRINGS src/game/version.h VERSION_LINE
   LIMIT_COUNT 1
@@ -72,7 +72,9 @@ if(TARGET_OS STREQUAL "windows")
   set(AUTO_DEPENDENCIES_DEFAULT ON)
 endif()
 
-option(CLIENT "Compile client" ON)
+option(GEOLOCATION "Enable geolocation support" ON)
+option(MYSQL "Enable mysql support" ON)
+option(CLIENT "Compile client" OFF)
 option(PREFER_BUNDLED_LIBS "Prefer bundled libraries over system libraries" ${AUTO_DEPENDENCIES_DEFAULT})
 option(DEV "Don't generate stuff necessary for packaging" OFF)
 
@@ -260,7 +262,8 @@ find_package(PythonInterp)
 find_package(SDL)
 find_package(Threads)
 find_package(Wavpack)
-
+find_package(MaxMindDB REQUIRED)
+find_package(MySQL)
 
 if(TARGET_OS AND TARGET_OS STREQUAL "mac")
   find_program(DMG dmg)
@@ -342,10 +345,14 @@ endif()
 # DEPENDENCY COMPILATION
 ########################################################################
 
+set_glob(DEP_JSON_SRC GLOB src/engine/external/json-parser json.c json.h)
+add_library(json EXCLUDE_FROM_ALL OBJECT ${DEP_JSON_SRC})
+
 set_glob(DEP_MD5_SRC GLOB src/engine/external/md5 md5.c md5.h)
 add_library(md5 EXCLUDE_FROM_ALL OBJECT ${DEP_MD5_SRC})
 
-list(APPEND TARGETS_DEP md5)
+list(APPEND TARGETS_DEP json md5)
+set(DEP_JSON $<TARGET_OBJECTS:json>)
 set(DEP_MD5 $<TARGET_OBJECTS:md5>)
 
 ########################################################################
@@ -443,6 +450,12 @@ set_glob(BASE GLOB_RECURSE src/base
   tl/threading.h
   vmath.h
 )
+
+set(LOCALIZATION
+  src/localization/components/localization.cpp
+  src/localization/components/localization.h
+)
+
 set_glob(ENGINE_INTERFACE GLOB src/engine
   client.h
   config.h
@@ -537,14 +550,22 @@ set(GAME_GENERATED_SHARED
   src/game/generated/protocol.h
 )
 
-set(DEPS ${DEP_MD5} ${ZLIB_DEP})
+set(DEPS ${DEP_JSON} ${DEP_MD5} ${ZLIB_DEP})
+
+find_package(ICU REQUIRED COMPONENTS uc i18n)
 
 # Libraries
-set(LIBS ${CMAKE_THREAD_LIBS_INIT} ${ZLIB_LIBRARIES} ${PLATFORM_LIBS})
+set(LIBS
+  ${CMAKE_THREAD_LIBS_INIT}
+  ${ZLIB_LIBRARIES}
+  ${PLATFORM_LIBS}
+  ICU::i18n
+  ICU::uc
+)
 
 # Targets
 add_library(engine-shared EXCLUDE_FROM_ALL OBJECT ${ENGINE_INTERFACE} ${ENGINE_SHARED} ${ENGINE_GENERATED_SHARED} ${BASE})
-add_library(game-shared EXCLUDE_FROM_ALL OBJECT ${GAME_SHARED} ${GAME_GENERATED_SHARED})
+add_library(game-shared EXCLUDE_FROM_ALL OBJECT ${GAME_SHARED} ${GAME_GENERATED_SHARED} ${LOCALIZATION})
 list(APPEND TARGETS_OWN engine-shared game-shared)
 
 
@@ -788,8 +809,33 @@ add_executable(${TARGET_SERVER}
   $<TARGET_OBJECTS:game-shared>
 )
 target_link_libraries(${TARGET_SERVER} ${LIBS_SERVER})
+target_link_libraries(${TARGET_SERVER} ICU::i18n)
+target_link_libraries(${TARGET_SERVER} ICU::uc)
 list(APPEND TARGETS_OWN ${TARGET_SERVER})
 list(APPEND TARGETS_LINK ${TARGET_SERVER})
+
+add_library(GeoLite2PP STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/geo/GeoLite2PP/GeoLite2PP.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/geo/GeoLite2PP/GeoLite2PP.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/geo/GeoLite2PP/GeoLite2PP_error_category.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/geo/GeoLite2PP/GeoLite2PP_error_category.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/geo/GeoLite2PP/GeoLite2PP_version.hpp
+  )
+  target_include_directories(GeoLite2PP PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/geo
+  )
+  add_library(GeoLite2PP::GeoLite2PP ALIAS GeoLite2PP)
+
+  target_sources(${TARGET_SERVER} PRIVATE
+    "src/geo/geolocation.cpp"
+    "src/geo/geolocation.h"
+  )
+
+  target_compile_definitions(${TARGET_SERVER} PRIVATE CONF_GEOLOCATION)
+  target_link_libraries(${TARGET_SERVER}
+    GeoLite2PP::GeoLite2PP
+    MaxMindDB::MaxMindDB
+  )
 
 if(TARGET_OS AND TARGET_OS STREQUAL "mac")
   set(SERVER_LAUNCHER_SRC src/osxlaunch/server.mm)

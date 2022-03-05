@@ -4,7 +4,9 @@
 #define ENGINE_SERVER_H
 #include "kernel.h"
 #include "message.h"
-
+#include <string>
+#include <vector>
+	
 #include <engine/map.h>
 
 class IServer : public IInterface
@@ -15,6 +17,15 @@ protected:
 	int m_TickSpeed;
 
 public:
+	class CLocalization* m_pLocalization;
+	
+	enum
+	{
+		AUTHED_NO=0,
+		AUTHED_MOD,
+		AUTHED_ADMIN,
+	};
+
 	/*
 		Structure: CClientInfo
 	*/
@@ -36,6 +47,8 @@ public:
 	virtual void GetClientAddr(int ClientID, char *pAddrStr, int Size) = 0;
 	virtual int ClientMapID(int ClientID) const = 0;
 
+	virtual std::string GetClientIP(int ClientID) const = 0;
+
 	virtual IEngineMap* GetMap(int MapID) const = 0;
 
 	virtual int SendMsg(CMsgPacker *pMsg, int Flags, int ClientID) = 0;
@@ -48,6 +61,8 @@ public:
 			return -1;
 		return SendMsg(&Packer, Flags, ClientID);
 	}
+
+	inline class CLocalization* Localization() { return m_pLocalization; }
 
 	virtual void SetClientName(int ClientID, char const *pName) = 0;
 	virtual void SetClientClan(int ClientID, char const *pClan) = 0;
