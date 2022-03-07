@@ -421,7 +421,7 @@ void lock_destroy(LOCK lock);
 int lock_trylock(LOCK lock);
 void lock_wait(LOCK lock);
 void lock_unlock(LOCK lock);
-
+void lock_release(LOCK lock);
 
 /* Group: Semaphores */
 
@@ -1249,6 +1249,8 @@ const char *str_utf8_skip_whitespaces(const char *str);
 		- Won't move the cursor less then 0
 */
 int str_utf8_rewind(const char *str, int cursor);
+
+int str_utf8_isstart(char c);
 
 /*
 	Function: str_utf8_forward

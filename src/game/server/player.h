@@ -101,6 +101,15 @@ public:
 		int m_Max;
 	} m_Latency;
 
+	struct
+	{
+		long long int m_UserID;
+		unsigned long long int m_Exp;
+		unsigned long long int m_Level;
+		unsigned long long int m_Money;
+	} m_AccData;
+	
+	bool LoggedIn;
 private:
 	CCharacter *m_pCharacter;
 	CGameContext *m_pGameServer;

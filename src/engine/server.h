@@ -90,6 +90,9 @@ public:
 
 	virtual void DemoRecorder_HandleAutoStart() = 0;
 	virtual bool DemoRecorder_IsRecording() = 0;
+
+	virtual const char* GetClientLanguage(int ClientID) = 0;
+	virtual void SetClientLanguage(int ClientID, const char* pLanguage) = 0;
 };
 
 class IGameServer : public IInterface
@@ -122,6 +125,8 @@ public:
 	virtual const char *GameType() = 0;
 	virtual const char *Version() = 0;
 	virtual const char *NetVersion() = 0;
+
+	virtual void SendChatTarget(int To, const char* pText, ...) = 0;
 };
 
 extern IGameServer *CreateGameServer();

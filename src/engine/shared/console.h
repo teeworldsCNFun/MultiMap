@@ -181,6 +181,8 @@ public:
 	virtual void Print(int Level, const char *pFrom, const char *pStr);
 
 	void SetAccessLevel(int AccessLevel) { m_AccessLevel = clamp(AccessLevel, (int)(ACCESS_LEVEL_ADMIN), (int)(ACCESS_LEVEL_MOD)); }
+
+	bool IsCommand(const char* pStr, int FlagMask) { return FindCommand(pStr, FlagMask) ? true : false; };
 };
 
 #endif

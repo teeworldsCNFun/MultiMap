@@ -34,6 +34,10 @@ IGameController::IGameController(class CGameContext *pGameServer)
 	//m_aNumSpawnPoints[0] = 0;
 	//m_aNumSpawnPoints[1] = 0;
 	//m_aNumSpawnPoints[2] = 0;
+
+	/* SQL */
+	// create tables
+	GameServer()->Sql()->create_tables();
 }
 
 IGameController::~IGameController()

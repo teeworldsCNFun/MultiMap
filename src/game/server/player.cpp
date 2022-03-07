@@ -21,6 +21,9 @@ CPlayer::CPlayer(CGameContext *pGameServer, int ClientID, int Team)
 	m_SpectatorID = SPEC_FREEVIEW;
 	m_LastActionTick = Server()->Tick();
 	m_TeamChangeTick = Server()->Tick();
+
+	LoggedIn = false;
+	m_AccData.m_Level = 0;
 }
 
 CPlayer::~CPlayer()

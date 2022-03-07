@@ -16,6 +16,7 @@
 #include "gamecontroller.h"
 #include "gameworld.h"
 #include "player.h"
+#include "GoaWay/sql.h"
 
 #include <localization/components/localization.h>
 
@@ -49,6 +50,10 @@ class CGameContext : public IGameServer
 	CNetObjHandler m_NetObjHandler;
 	CTuningParams m_Tuning;
 
+	/* SQL */
+	CSQL *m_Sql;
+	CAccountData *m_AccountData;
+
 	static bool ConTuneParam(IConsole::IResult *pResult, void *pUserData);
 	static bool ConTuneReset(IConsole::IResult *pResult, void *pUserData);
 	static bool ConTuneDump(IConsole::IResult *pResult, void *pUserData);
@@ -69,8 +74,12 @@ class CGameContext : public IGameServer
 	static bool ConVote(IConsole::IResult *pResult, void *pUserData);
 	static bool ConchainSpecialMotdupdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
 	
+	// Register Chat Command
+	void RCC(const char *pName, const char *pParams, IConsole::FCommandCallback pfnFunc);
+
 	// Chat cmds
-	static bool ConWorld(IConsole::IResult *pResult, void *pUserData);
+	static bool ConRegister(IConsole::IResult *pResult, void *pUserData);
+	static bool ConLanguage(IConsole::IResult *pResult, void *pUserData);
 
 	CGameContext(int Resetting);
 	void Construct(int Resetting);
@@ -81,6 +90,12 @@ public:
 	class IConsole *Console() { return m_pConsole; }
 	CCollision *Collision(int MapID) { return &(m_vCollision[MapID]); }
 	CTuningParams *Tuning() { return &m_Tuning; }
+
+	/* SQL */
+	CSQL *Sql() const { return m_Sql; };
+	CAccountData *AccountData() {return m_AccountData; };
+
+
 
 	CGameContext();
 	~CGameContext();

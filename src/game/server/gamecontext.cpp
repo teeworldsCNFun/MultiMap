@@ -15,6 +15,7 @@
 #include "gamemodes/mod.h"
 
 #include <geo/geolocation.h>
+
 enum
 {
 	RESET,
@@ -40,6 +41,10 @@ void CGameContext::Construct(int Resetting)
 
 	if(Resetting==NO_RESET)
 		m_pVoteOptionHeap = new CHeap();
+
+	/* SQL */
+	m_AccountData = new CAccountData;
+	m_Sql = new CSQL(this);
 }
 
 CGameContext::CGameContext(int Resetting)
@@ -72,7 +77,10 @@ void CGameContext::Clear()
 	CVoteOptionServer *pVoteOptionLast = m_pVoteOptionLast;
 	int NumVoteOptions = m_NumVoteOptions;
 	CTuningParams Tuning = m_Tuning;
-
+	
+	delete m_Sql;
+	delete m_AccountData;
+	
 	m_Resetting = true;
 	this->~CGameContext();
 	mem_zero(this, sizeof(*this));
@@ -717,30 +725,37 @@ void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
 
 			pPlayer->m_LastChat = Server()->Tick();
 
-			if(pMsg->m_pMessage[0] == '/' || pMsg->m_pMessage[0] == '\\')
+			if (pMsg->m_pMessage[0] == '/')
 			{
-				switch(m_apPlayers[ClientID]->m_Authed)
+				char aCommand[128][128] = { { 0 } };
+				int Command = 0;
+				int Char = 0;
+
+				if (!pPlayer->GetCharacter() && !(pPlayer->GetTeam() == TEAM_SPECTATORS))
+					return;
+
+				for (int i = 1; i < str_length(pMsg->m_pMessage); i++)
 				{
-					case IServer::AUTHED_ADMIN:
-						Console()->SetAccessLevel(IConsole::ACCESS_LEVEL_ADMIN);
-						break;
-					case IServer::AUTHED_MOD:
-						Console()->SetAccessLevel(IConsole::ACCESS_LEVEL_MOD);
-						break;
-					default:
-						Console()->SetAccessLevel(IConsole::ACCESS_LEVEL_USER);
-				}	
-				m_ChatResponseTargetID = ClientID;
-				
-				Console()->ExecuteLineFlag(pMsg->m_pMessage + 1, ClientID, (Team != CGameContext::CHAT_ALL), CFGFLAG_CHAT);
-				
-				m_ChatResponseTargetID = -1;
-				Console()->SetAccessLevel(IConsole::ACCESS_LEVEL_ADMIN);
-
-				return;
+					if (pMsg->m_pMessage[i] == ' ')
+					{
+						Command++;
+						Char = 0;
+					continue;
+					}
+					aCommand[Command][Char] = pMsg->m_pMessage[i];
+					Char++;
+				}
+				if (Console()->IsCommand(aCommand[0], CFGFLAG_CHAT))
+					Console()->ExecuteLineFlag(pMsg->m_pMessage + 1, ClientID, false, CFGFLAG_CHAT);
+				else
+				{
+					char aBuf[256];
+					str_format(aBuf, sizeof(aBuf), "Unknown command: '%s'", aCommand[0]);
+					SendChatTarget(ClientID, "Unknown command: '{str:command}'");
+				}
 			}
-
-			SendChat(ClientID, Team, pMsg->m_pMessage);
+			else
+				SendChat(ClientID, Team, pMsg->m_pMessage);
 		}
 		else if(MsgID == NETMSGTYPE_CL_CALLVOTE)
 		{
@@ -1553,21 +1568,68 @@ bool CGameContext::ConVote(IConsole::IResult *pResult, void *pUserData)
 	return true;
 }
 
-bool CGameContext::ConWorld(IConsole::IResult *pResult, void *pUserData)
+bool CGameContext::ConRegister(IConsole::IResult *pResult, void *pUserData)
 {
 	CGameContext *pSelf = (CGameContext *)pUserData;
+	int ClientID = pResult->GetClientID();
+	
+	const char *pUsername = pResult->GetString(0);
+	const char *pPassword = pResult->GetString(1);
 
-	char aMapBuf[64];
+	pSelf->Sql()->create_account(pUsername, pPassword, ClientID);
+	return true;
+}
 
-	// check if there is a vote running
-	if(!pSelf->m_VoteCloseTime)
-		return true;
+bool CGameContext::ConLanguage(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	
+	int ClientID = pResult->GetClientID();
+	
+	const char *pLanguageCode = (pResult->NumArguments()>0) ? pResult->GetString(0) : 0x0;
+	char aFinalLanguageCode[8];
+	aFinalLanguageCode[0] = 0;
 
-	if(pResult->NumArguments() <= 0)
-		return false;
-
-	str_copy(aMapBuf, pResult->GetString(0), sizeof(aMapBuf));
-	pSelf->Server()->SetClientMap(pResult->GetClientID(), aMapBuf);
+	if(pLanguageCode)
+	{
+		if(str_comp_nocase(pLanguageCode, "ua") == 0)
+			str_copy(aFinalLanguageCode, "uk", sizeof(aFinalLanguageCode));
+		else
+		{
+			for(int i=0; i<pSelf->Server()->Localization()->m_pLanguages.size(); i++)
+			{
+				if(str_comp_nocase(pLanguageCode, pSelf->Server()->Localization()->m_pLanguages[i]->GetFilename()) == 0)
+					str_copy(aFinalLanguageCode, pLanguageCode, sizeof(aFinalLanguageCode));
+			}
+		}
+	}
+	
+	if(aFinalLanguageCode[0])
+	{
+		pSelf->Server()->SetClientLanguage(ClientID, aFinalLanguageCode);
+		if(pSelf->m_apPlayers[ClientID])
+			pSelf->m_apPlayers[ClientID]->SetLanguage(aFinalLanguageCode);
+	}
+	else
+	{
+		const char* pLanguage = pSelf->m_apPlayers[ClientID]->GetLanguage();
+		const char* pTxtUnknownLanguage = pSelf->Server()->Localization()->Localize(pLanguage, _("Unknown language"));
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "language", pTxtUnknownLanguage);	
+		
+		dynamic_string BufferList;
+		int BufferIter = 0;
+		for(int i=0; i<pSelf->Server()->Localization()->m_pLanguages.size(); i++)
+		{
+			if(i>0)
+				BufferIter = BufferList.append_at(BufferIter, ", ");
+			BufferIter = BufferList.append_at(BufferIter, pSelf->Server()->Localization()->m_pLanguages[i]->GetFilename());
+		}
+		
+		dynamic_string Buffer;
+		pSelf->Server()->Localization()->Format_L(Buffer, pLanguage, _("Available languages: {str:ListOfLanguage}"), "ListOfLanguage", BufferList.buffer(), NULL);
+		
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "language", Buffer.buffer());
+	}
 	
 	return true;
 }
@@ -1584,6 +1646,15 @@ bool CGameContext::ConchainSpecialMotdupdate(IConsole::IResult *pResult, void *p
 			if(pSelf->m_apPlayers[i])
 				pSelf->Server()->SendPackMsg(&Msg, MSGFLAG_VITAL, i);
 	}
+}
+
+// Register Chat Command
+void CGameContext::RCC(const char *pName, const char *pParams, IConsole::FCommandCallback pfnFunc)
+{
+	m_pServer = Kernel()->RequestInterface<IServer>();
+	m_pConsole = Kernel()->RequestInterface<IConsole>();
+
+	Console()->Register(pName, pParams, CFGFLAG_USER|CFGFLAG_CHAT, pfnFunc, this, "");
 }
 
 void CGameContext::OnConsoleInit()
@@ -1613,6 +1684,24 @@ void CGameContext::OnConsoleInit()
 	Console()->Register("vote", "r", CFGFLAG_SERVER, ConVote, this, "Force a vote to yes/no");
 
 	Console()->Chain("sv_motd", ConchainSpecialMotdupdate, this);
+
+	/*	Register Chat Commands (GameContext)
+		Example:
+		RCC("kill", "", ConSelfKill);
+
+		bool CGameContext::ConSelfKill(IConsole::IResult *pResult, void *pUserData)
+		{
+			CGameContext *pSelf = (CGameContext *)pUserData;
+			int ClientID = pResult->GetClientID();
+			if(m_apPlayers[ClientID])
+			pSelf->KillCharacter(ClientID);
+			return true;
+		}
+
+		Than type /kill in game, it will kill you self :D
+	*/
+	RCC("register", "ss", ConRegister); // Register Account
+
 	//InitGeolocation();
 }
 

@@ -1951,3 +1951,13 @@ std::string CServer::GetClientIP(int ClientID) const
 	std::string ip(aAddrStr);
 	return ip;
 }
+
+const char* CServer::GetClientLanguage(int ClientID)
+{
+	return m_aClients[ClientID].m_aLanguage;
+}
+
+void CServer::SetClientLanguage(int ClientID, const char* pLanguage)
+{
+	str_copy(m_aClients[ClientID].m_aLanguage, pLanguage, sizeof(m_aClients[ClientID].m_aLanguage));
+}
