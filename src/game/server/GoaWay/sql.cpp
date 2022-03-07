@@ -272,7 +272,7 @@ static void login_thread(void *user)
 				{
 					// check for right pw and get data
 					str_format(buf, sizeof(buf), "SELECT UserID, "
-					"Level, Exp, Money, "
+					"Level, Exp, Money "
 					"FROM %s_Account WHERE Username='%s' AND Password='%s';", data->m_SqlData->prefix, data->name, data->pass);
 					
 					// create results
