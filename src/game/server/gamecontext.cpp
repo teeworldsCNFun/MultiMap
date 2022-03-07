@@ -13,6 +13,7 @@
 #include "gamemodes/tdm.h"
 #include "gamemodes/ctf.h"
 #include "gamemodes/mod.h"
+#include <string.h>
 
 #include <geo/geolocation.h>
 
@@ -1576,7 +1577,40 @@ bool CGameContext::ConRegister(IConsole::IResult *pResult, void *pUserData)
 	const char *pUsername = pResult->GetString(0);
 	const char *pPassword = pResult->GetString(1);
 
+	if(strlen(pUsername) > 15)
+	{
+		pSelf->SendChatTarget(ClientID, "ERROR: name is to long!");
+		return false;
+	}
+	else if(strlen(pPassword) > 15)
+	{
+		pSelf->SendChatTarget(ClientID, "ERROR: password is to long!");
+		return false;
+	}
+	else if(pSelf->m_apPlayers[ClientID]->LoggedIn)
+	{	
+		pSelf->SendChatTarget(ClientID, "You are already logged in.");
+		return false;
+	}
+
 	pSelf->Sql()->create_account(pUsername, pPassword, ClientID);
+	return true;
+}
+
+bool CGameContext::ConLogin(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	int ClientID = pResult->GetClientID();
+	
+	const char *pUsername = pResult->GetString(0);
+	const char *pPassword = pResult->GetString(1);
+
+	if(pSelf->m_apPlayers[ClientID]->LoggedIn)
+	{	
+		pSelf->SendChatTarget(ClientID, "You are already logged in.");
+		return false;
+	}
+	pSelf->Sql()->login(pUsername, pPassword, ClientID);
 	return true;
 }
 
@@ -1701,6 +1735,7 @@ void CGameContext::OnConsoleInit()
 		Than type /kill in game, it will kill you self :D
 	*/
 	RCC("register", "ss", ConRegister); // Register Account
+	RCC("login", "ss", ConLogin); // Login Account
 
 	//InitGeolocation();
 }

@@ -22,8 +22,7 @@ CPlayer::CPlayer(CGameContext *pGameServer, int ClientID, int Team)
 	m_LastActionTick = Server()->Tick();
 	m_TeamChangeTick = Server()->Tick();
 
-	LoggedIn = false;
-	m_AccData.m_Level = 0;
+	AccReset();
 }
 
 CPlayer::~CPlayer()
@@ -302,4 +301,16 @@ const char* CPlayer::GetLanguage()
 void CPlayer::SetLanguage(const char* pLanguage)
 {
 	str_copy(m_aLanguage, pLanguage, sizeof(m_aLanguage));
+}
+
+void CPlayer::AccReset()
+{
+	LoggedIn = false;
+	m_AccData.m_Exp = 0;
+	m_AccData.m_Level = 0;
+	m_AccData.m_UserID = 0;
+	m_AccData.m_Money = 0;
+	
+	str_copy(m_AccData.Password, "", MAX_NAME_LENGTH);
+	str_copy(m_AccData.Username, "", MAX_NAME_LENGTH);
 }

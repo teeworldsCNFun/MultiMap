@@ -289,7 +289,7 @@ static void login_thread(void *user)
 						{
 							if(GameServer()->AccountData()->UserID[i] == data->m_SqlData->results->getInt("UserID"))
 							{
-								dbg_msg("SQL", "Account '%s' allready is logged in", data->name);
+								dbg_msg("SQL", "Account '%s' already is logged in", data->name);
 								
 								GameServer()->SendChatTarget(data->m_ClientID, "This Account is already logged in.");
 								

@@ -104,12 +104,16 @@ public:
 	struct
 	{
 		long long int m_UserID;
+		char Username[32];
+		char Password[32];
 		unsigned long long int m_Exp;
 		unsigned long long int m_Level;
 		unsigned long long int m_Money;
 	} m_AccData;
 	
 	bool LoggedIn;
+
+	void AccReset();
 private:
 	CCharacter *m_pCharacter;
 	CGameContext *m_pGameServer;

@@ -79,6 +79,7 @@ class CGameContext : public IGameServer
 
 	// Chat cmds
 	static bool ConRegister(IConsole::IResult *pResult, void *pUserData);
+	static bool ConLogin(IConsole::IResult *pResult, void *pUserData);
 	static bool ConLanguage(IConsole::IResult *pResult, void *pUserData);
 
 	CGameContext(int Resetting);
