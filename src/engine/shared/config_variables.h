@@ -83,11 +83,12 @@ MACRO_CONFIG_STR(SvName, sv_name, 128, "unnamed server", CFGFLAG_SERVER, "Server
 MACRO_CONFIG_STR(Bindaddr, bindaddr, 128, "", CFGFLAG_CLIENT|CFGFLAG_SERVER|CFGFLAG_MASTER, "Address to bind the client/server to")
 MACRO_CONFIG_INT(SvPort, sv_port, 8303, 0, 0, CFGFLAG_SERVER, "Port to use for the server")
 MACRO_CONFIG_INT(SvExternalPort, sv_external_port, 0, 0, 0, CFGFLAG_SERVER, "External port to report to the master servers")
-
 MACRO_CONFIG_INT(SvAllowOldClients, sv_allow_old_clients, 1, 0, 1, CFGFLAG_SERVER, "Allow clients to connect that do not support the anti-spoof protocol (this presents a DoS risk)")
 MACRO_CONFIG_INT(SvOldClientsPerInterval, sv_old_clients_per_interval, 5, 0, 0, CFGFLAG_SERVER, "Maximum number of clients that can connect per interval set by `sv_old_clients_interval`")
 MACRO_CONFIG_INT(SvOldClientsInterval, sv_old_clients_interval, 20, 0, 0, CFGFLAG_SERVER, "Interval (in seconds) in which `sv_old_clients_per_interval` clients are allowed to connect")
 MACRO_CONFIG_INT(SvOldClientsSkip, sv_old_clients_skip, 20, 0, 0, CFGFLAG_SERVER, "How many legacy connection attempts to ignore before sending a legacy handshake despite the rate limit being hit")
+
+MACRO_CONFIG_INT(PoisonDmg, sv_poison_dmg, 1, 1, 10, CFGFLAG_SERVER, "How many legacy connection attempts to ignore before sending a legacy handshake despite the rate limit being hit")
 
 MACRO_CONFIG_INT(SvMapTest, sv_map_test, 1, 0, 0, CFGFLAG_SERVER, "Test MAp")
 MACRO_CONFIG_STR(SvMap, sv_map, 128, "dm1", CFGFLAG_SERVER, "Map to use on the server")

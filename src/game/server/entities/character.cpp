@@ -113,6 +113,9 @@ bool CCharacter::IsGrounded()
 
 void CCharacter::HandleNinja()
 {
+	if(m_Frozen)
+		return;
+
 	if(m_ActiveWeapon != WEAPON_NINJA)
 		return;
 
@@ -194,7 +197,7 @@ void CCharacter::HandleNinja()
 void CCharacter::DoWeaponSwitch()
 {
 	// make sure we can switch
-	if(m_ReloadTimer != 0 || m_QueuedWeapon == -1 || m_aWeapons[WEAPON_NINJA].m_Got)
+	if(m_ReloadTimer != 0 || m_QueuedWeapon == -1 || m_aWeapons[WEAPON_NINJA].m_Got || m_Frozen)
 		return;
 
 	// switch Weapon
@@ -202,7 +205,9 @@ void CCharacter::DoWeaponSwitch()
 }
 
 void CCharacter::HandleWeaponSwitch()
-{
+{	
+	if(m_Frozen)
+		return;
 	int WantedWeapon = m_ActiveWeapon;
 	if(m_QueuedWeapon != -1)
 		WantedWeapon = m_QueuedWeapon;
@@ -404,6 +409,9 @@ void CCharacter::HandleWeapons()
 	//ninja
 	HandleNinja();
 
+	if(m_Frozen)
+		return;
+
 	// check reload timer
 	if(m_ReloadTimer)
 	{
@@ -540,6 +548,38 @@ void CCharacter::Tick()
 
 	// handle Weapons
 	HandleWeapons();
+
+	if(m_FreezeEnd)
+	{
+		if((Server()->Tick() - m_Ninja.m_ActivationTick) < (g_pData->m_Weapons.m_Ninja.m_Duration * Server()->TickSpeed() / 1000))
+		{
+			m_aWeapons[WEAPON_NINJA].m_Ammo = -1;
+			m_aWeapons[WEAPON_NINJA].m_Got = true;
+
+			if(m_FreezeWeapon == WEAPON_NINJA)
+			{
+				SetWeapon(m_LastWeapon);
+				m_LastWeapon = m_ActiveWeapon?WEAPON_HAMMER:WEAPON_GUN;
+			}
+		}
+		
+		m_FreezeEnd = false;
+	}
+
+	if(m_Frozen)
+	{
+		if(m_Frozen%50==0 && m_FreezeTick+25 < Server()->Tick())
+		{
+			m_FreezeTick = Server()->Tick();
+			GameServer()->CreateDamageInd(m_Pos, GetAngle(vec2(0, 1)), (int)(m_Frozen/50), GetMapID());
+		}
+
+		ResetInput();
+		m_Frozen--;
+
+		if(!m_Frozen)
+			m_FreezeEnd = true;
+	}
 
 	// Previnput
 	m_PrevInput = m_Input;
@@ -845,4 +885,51 @@ void CCharacter::Snap(int SnappingClient)
 	}
 
 	pCharacter->m_PlayerFlags = GetPlayer()->m_PlayerFlags;
+}
+
+int CCharacter::ActiveWeapon()
+{
+	return m_ActiveWeapon;
+}
+
+bool CCharacter::IsInLove() const
+{
+    return m_LoveTick > 0;
+}
+
+void CCharacter::LoveEffect()
+{
+	if(m_LoveTick <= 0)
+		m_LoveTick = Server()->TickSpeed()*5;
+}
+
+void CCharacter::Poison(int Count, int From)
+{
+	if(m_Poison <= 0)
+	{
+		m_PoisonTick = 0;
+		m_Poison = Count;
+	}
+}
+
+void CCharacter::Freeze(int Seconds)
+{
+	m_EmoteType = EMOTE_BLINK;
+	m_EmoteStop = Server()->Tick() + Seconds;
+	
+	if(!m_Frozen)
+		m_FreezeWeapon = m_ActiveWeapon;
+
+	m_Frozen = Seconds;
+	m_LastWeapon = ActiveWeapon();
+	m_aWeapons[WEAPON_NINJA].m_Ammo = 0;
+	SetWeapon(WEAPON_NINJA);
+}
+
+void CCharacter::Unfreeze()
+{
+	//m_EmoteType = EMOTE_NORMAL;
+	m_EmoteStop = Server()->Tick();
+	m_Frozen = m_Frozen ? 1 : 0;
+	SetWeapon(m_LastWeapon);
 }

@@ -64,6 +64,24 @@ public:
 	bool IsAlive() const { return m_Alive; }
 	class CPlayer *GetPlayer() { return m_pPlayer; }
 
+	int ActiveWeapon();
+	
+	void Poison(int Count, int From);
+	bool IsInLove() const;
+	void LoveEffect();
+
+	int m_LoveTick;
+	int m_PoisonTick;
+	int m_Poison;
+
+	void Freeze(int Seconds);
+	void Unfreeze();
+	
+	int m_Frozen;
+	int m_FreezeWeapon;
+	int64 m_FreezeTick;
+	bool m_FreezeEnd;
+
 private:
 	// player controlling this character
 	class CPlayer *m_pPlayer;

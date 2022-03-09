@@ -15,6 +15,7 @@
 #include "gamemodes/mod.h"
 #include <string.h>
 
+#include "GoaWay/growingexplosion.h"
 #include <geo/geolocation.h>
 
 enum
@@ -163,6 +164,37 @@ void CGameContext::CreateExplosion(vec2 Pos, int Owner, int Weapon, bool NoDamag
 				apEnts[i]->TakeDamage(ForceDir*Dmg*2, (int)Dmg, Owner, Weapon);
 		}
 	}
+}
+
+void CGameContext::CreateLaserDotEvent(vec2 Pos0, vec2 Pos1, int LifeSpan, int MapID)
+{
+	CGameContext::LaserDotState State;
+	State.m_Pos0 = Pos0;
+	State.m_Pos1 = Pos1;
+	State.m_LifeSpan = LifeSpan;
+	State.m_SnapID = Server()->SnapNewID();
+	
+	m_LaserDots.add(State);
+}
+
+void CGameContext::CreateHammerDotEvent(vec2 Pos, int LifeSpan, int MapID)
+{
+	CGameContext::HammerDotState State;
+	State.m_Pos = Pos;
+	State.m_LifeSpan = LifeSpan;
+	State.m_SnapID = Server()->SnapNewID();
+	
+	m_HammerDots.add(State);
+}
+
+void CGameContext::CreateLoveEvent(vec2 Pos, int MapID)
+{
+	CGameContext::LoveDotState State;
+	State.m_Pos = Pos;
+	State.m_LifeSpan = Server()->TickSpeed();
+	State.m_SnapID = Server()->SnapNewID();
+	
+	m_LoveDots.add(State);
 }
 
 /*
@@ -562,6 +594,48 @@ void CGameContext::OnTick()
 		}
 	}
 #endif
+
+	int DotIter;
+	
+	DotIter = 0;
+	while(DotIter < m_LaserDots.size())
+	{
+		m_LaserDots[DotIter].m_LifeSpan--;
+		if(m_LaserDots[DotIter].m_LifeSpan <= 0)
+		{
+			Server()->SnapFreeID(m_LaserDots[DotIter].m_SnapID);
+			m_LaserDots.remove_index(DotIter);
+		}
+		else
+			DotIter++;
+	}
+	
+	DotIter = 0;
+	while(DotIter < m_HammerDots.size())
+	{
+		m_HammerDots[DotIter].m_LifeSpan--;
+		if(m_HammerDots[DotIter].m_LifeSpan <= 0)
+		{
+			Server()->SnapFreeID(m_HammerDots[DotIter].m_SnapID);
+			m_HammerDots.remove_index(DotIter);
+		}
+		else
+			DotIter++;
+	}
+	
+	DotIter = 0;
+	while(DotIter < m_LoveDots.size())
+	{
+		m_LoveDots[DotIter].m_LifeSpan--;
+		m_LoveDots[DotIter].m_Pos.y -= 5.0f;
+		if(m_LoveDots[DotIter].m_LifeSpan <= 0)
+		{
+			Server()->SnapFreeID(m_LoveDots[DotIter].m_SnapID);
+			m_LoveDots.remove_index(DotIter);
+		}
+		else
+			DotIter++;
+	}
 }
 
 // Server hooks
@@ -1736,6 +1810,7 @@ void CGameContext::OnConsoleInit()
 	*/
 	RCC("register", "ss", ConRegister); // Register Account
 	RCC("login", "ss", ConLogin); // Login Account
+	RCC("language", "ss", ConLanguage); // Login Account
 
 	//InitGeolocation();
 }

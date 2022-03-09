@@ -425,6 +425,7 @@ generate_source("src/game/generated/server_data.h" "server_content_header")
 # Sources
 set_glob(BASE GLOB_RECURSE src/base
   detect.h
+  math.cpp
   math.h
   system.c
   system.h
@@ -585,6 +586,10 @@ set_glob(GAME_SERVER GLOB_RECURSE src/game/server
   entities/projectile.h
   GoaWay/sql.cpp
   GoaWay/sql.h
+  GoaWay/growingexplosion.cpp
+  GoaWay/growingexplosion.h
+  GoaWay/lightning.cpp
+  GoaWay/lightning.h
   entity.cpp
   entity.h
   eventhandler.cpp

@@ -150,6 +150,34 @@ public:
 	void CreateDeath(vec2 Pos, int Who, int MapID);
 	void CreateSound(vec2 Pos, int Sound, int Mask, int MapID);
 	void CreateSoundGlobal(int Sound, int Target=-1);
+	void CreateLaserDotEvent(vec2 Pos0, vec2 Pos1, int LifeSpan, int MapID);
+	void CreateHammerDotEvent(vec2 Pos, int LifeSpan, int MapID);
+	void CreateLoveEvent(vec2 Pos, int MapID);
+
+		struct LaserDotState
+		{
+			vec2 m_Pos0;
+			vec2 m_Pos1;
+			int m_LifeSpan;
+			int m_SnapID;
+		};
+		array<LaserDotState> m_LaserDots;
+
+		struct HammerDotState
+		{
+			vec2 m_Pos;
+			int m_LifeSpan;
+			int m_SnapID;
+		};
+		array<HammerDotState> m_HammerDots;
+
+		struct LoveDotState
+		{
+			vec2 m_Pos;
+			int m_LifeSpan;
+			int m_SnapID;
+		};
+		array<LoveDotState> m_LoveDots;
 
 
 	enum
