@@ -279,7 +279,9 @@ void CServer::CClient::Reset()
 	m_LastAckedSnapshot = -1;
 	m_LastInputTick = -1;
 	m_SnapRate = CClient::SNAPRATE_INIT;
-	m_Score = 0;
+	//m_Score = 0;
+
+	m_ChangeMap = false;
 }
 
 CServer::CServer() : m_DemoRecorder(&m_SnapshotDelta)
@@ -741,6 +743,7 @@ int CServer::NewClientCallback(int ClientID, bool Legacy, void *pUser)
 	pThis->m_aClients[ClientID].m_AuthTries = 0;
 	pThis->m_aClients[ClientID].m_pRconCmdToSend = 0;
 	pThis->m_aClients[ClientID].m_MapID = MAP_DEFAULT_ID;
+	pThis->m_aClients[ClientID].m_ChangeMap = false;
 	pThis->m_aClients[ClientID].Reset();
 
 
@@ -771,6 +774,7 @@ int CServer::DelClientCallback(int ClientID, const char *pReason, void *pUser)
 	pThis->m_aClients[ClientID].m_AuthTries = 0;
 	pThis->m_aClients[ClientID].m_pRconCmdToSend = 0;
 	pThis->m_aClients[ClientID].m_MapID = MAP_DEFAULT_ID;
+	pThis->m_aClients[ClientID].m_ChangeMap = false;
 	pThis->m_aClients[ClientID].m_Snapshots.PurgeAll();
 	return 0;
 }
@@ -942,14 +946,18 @@ void CServer::ProcessClientPacket(CNetChunk *pPacket)
 		{
 			if((pPacket->m_Flags&NET_CHUNKFLAG_VITAL) != 0 && m_aClients[ClientID].m_State == CClient::STATE_CONNECTING)
 			{
-				char aAddrStr[NETADDR_MAXSTRSIZE];
-				net_addr_str(m_NetServer.ClientAddr(ClientID), aAddrStr, sizeof(aAddrStr), true);
+				if(!m_aClients[ClientID].m_ChangeMap)
+				{
+					char aAddrStr[NETADDR_MAXSTRSIZE];
+					net_addr_str(m_NetServer.ClientAddr(ClientID), aAddrStr, sizeof(aAddrStr), true);
 
-				char aBuf[256];
-				str_format(aBuf, sizeof(aBuf), "player is ready. ClientID=%x addr=%s", ClientID, aAddrStr);
-				Console()->Print(IConsole::OUTPUT_LEVEL_ADDINFO, "server", aBuf);
+					char aBuf[256];
+					str_format(aBuf, sizeof(aBuf), "player is ready. ClientID=%x addr=%s", ClientID, aAddrStr);
+					Console()->Print(IConsole::OUTPUT_LEVEL_ADDINFO, "server", aBuf);
+					GameServer()->OnClientConnected(ClientID, 0);
+					GameServer()->PrepareClientChangeMap(ClientID);
+				}
 				m_aClients[ClientID].m_State = CClient::STATE_READY;
-				GameServer()->OnClientConnected(ClientID, 0);
 				SendConnectionReady(ClientID);
 			}
 		}
@@ -957,12 +965,15 @@ void CServer::ProcessClientPacket(CNetChunk *pPacket)
 		{
 			if((pPacket->m_Flags&NET_CHUNKFLAG_VITAL) != 0 && m_aClients[ClientID].m_State == CClient::STATE_READY && GameServer()->IsClientReady(ClientID))
 			{
-				char aAddrStr[NETADDR_MAXSTRSIZE];
-				net_addr_str(m_NetServer.ClientAddr(ClientID), aAddrStr, sizeof(aAddrStr), true);
+				if(!m_aClients[ClientID].m_ChangeMap)
+				{
+					char aAddrStr[NETADDR_MAXSTRSIZE];
+					net_addr_str(m_NetServer.ClientAddr(ClientID), aAddrStr, sizeof(aAddrStr), true);
 
-				char aBuf[256];
-				str_format(aBuf, sizeof(aBuf), "player has entered the game. ClientID=%x addr=%s", ClientID, aAddrStr);
-				Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
+					char aBuf[256];
+					str_format(aBuf, sizeof(aBuf), "player has entered the game. ClientID=%x addr=%s", ClientID, aAddrStr);
+					Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
+				}
 				m_aClients[ClientID].m_State = CClient::STATE_INGAME;
 				GameServer()->OnClientEnter(ClientID);
 			}
@@ -1534,10 +1545,15 @@ void CServer::ChangeClientMap(int ClientID)
 		if(m_aClients[ClientID].m_State <= CClient::STATE_AUTH)
 			return;
 
+		GameServer()->PrepareClientChangeMap(ClientID);
+
 		GameServer()->KillCharacter(ClientID);
 		SendMap(ClientID, m_aClients[ClientID].m_NextMapID);
 		m_aClients[ClientID].Reset();
+		m_aClients[ClientID].m_ChangeMap = true;
 		m_aClients[ClientID].m_State = CClient::STATE_CONNECTING;
+
+	
 
 	GameServer()->OnInitMap(m_aClients[ClientID].m_NextMapID);
 }

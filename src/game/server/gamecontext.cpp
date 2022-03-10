@@ -1979,6 +1979,18 @@ void CGameContext::InitGeolocation()
 
 }
 
+void CGameContext::PrepareClientChangeMap(int ClientID)
+{
+	if (m_apPlayers[ClientID])
+	{
+		m_apPlayers[ClientID]->KillCharacter(WEAPON_WORLD);
+		delete m_apPlayers[ClientID];
+		m_apPlayers[ClientID] = nullptr;
+	}
+	m_apPlayers[ClientID] = new(ClientID) CPlayer(this, ClientID, TEAM_RED);
+}
+
+
 const char *CGameContext::GameType() { return m_pController && m_pController->m_pGameType ? m_pController->m_pGameType : ""; }
 const char *CGameContext::Version() { return GAME_VERSION; }
 const char *CGameContext::NetVersion() { return GAME_NETVERSION; }

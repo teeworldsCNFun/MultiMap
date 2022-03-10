@@ -222,6 +222,8 @@ public:
 	virtual void OnClientDirectInput(int ClientID, void *pInput);
 	virtual void OnClientPredictedInput(int ClientID, void *pInput);
 
+	void PrepareClientChangeMap(int ClientID) override;
+
 	virtual bool IsClientReady(int ClientID);
 	virtual bool IsClientPlayer(int ClientID);
 

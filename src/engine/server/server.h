@@ -129,7 +129,8 @@ public:
 
 		int m_MapID;
 		int m_NextMapID;
-
+		bool m_ChangeMap;
+		
 		char m_aLanguage[16];
 	};
 
